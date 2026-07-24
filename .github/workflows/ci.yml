@@ -1,0 +1,35 @@
+name: ai-platform-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ["spring-ai-backend/**"]
+  pull_request:
+    paths: ["spring-ai-backend/**"]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spring-ai-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: "21"
+          cache: maven
+      - name: Build and run tests
+        run: mvn -B verify
+
+  docker-image:
+    needs: build-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t ai-platform:${{ github.sha }} spring-ai-backend
+      # Push step intentionally omitted — wire in your registry credentials:
+      # - docker login / docker push to ECR/GHCR, then trigger deploy.
