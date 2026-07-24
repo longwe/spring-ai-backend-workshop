@@ -59,7 +59,7 @@ public class DocumentService {
                 .orElseThrow(() -> new NotFoundException("user_not_found"));
 
         var parsed = readWithTika(file);
-        var chunks = new TokenTextSplitter().apply(parsed);
+        var chunks = chunkDocument(parsed);
 
         var entity = new DocumentEntity(
                 sanitizeFilename(file.getOriginalFilename()),
@@ -68,11 +68,7 @@ public class DocumentService {
                 chunks.size(),
                 user.getId());
 
-        chunks.forEach(chunk -> {
-            chunk.getMetadata().put("documentId", entity.getId().toString());
-            chunk.getMetadata().put("filename", entity.getFilename());
-        });
-        vectorStore.add(chunks);
+        storeChunks(chunks, entity);
         documentRepository.save(entity);
 
         log.info("Ingested document {} ({} chunks)", entity.getFilename(), chunks.size());
@@ -92,6 +88,20 @@ public class DocumentService {
         vectorStore.delete(new FilterExpressionBuilder().eq("documentId", id.toString()).build());
         documentRepository.delete(entity);
         log.info("Deleted document {} and its vector chunks", entity.getFilename());
+    }
+
+    /** Splits parsed pages into token-sized chunks suited to the embedding model. */
+    private List<Document> chunkDocument(List<Document> parsed) {
+        return new TokenTextSplitter().apply(parsed);
+    }
+
+    /** Stamps each chunk with its source metadata, then embeds + stores in pgvector. */
+    private void storeChunks(List<Document> chunks, DocumentEntity entity) {
+        chunks.forEach(chunk -> {
+            chunk.getMetadata().put("documentId", entity.getId().toString());
+            chunk.getMetadata().put("filename", entity.getFilename());
+        });
+        vectorStore.add(chunks);
     }
 
     private List<Document> readWithTika(MultipartFile file) {

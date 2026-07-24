@@ -67,12 +67,7 @@ public class ChatService {
         var conversation = resolveConversation(user, request);
 
         var start = System.currentTimeMillis();
-        var response = chatClient.prompt()
-                .user(request.message())
-                .advisors(advisors -> advisors.param(ChatMemory.CONVERSATION_ID, conversation.getId().toString()))
-                .tools(agentTools)
-                .call()
-                .chatClientResponse();
+        var response = callModel(conversation, request);
         var latencyMs = System.currentTimeMillis() - start;
 
         var answer = response.chatResponse().getResult().getOutput().getText();
@@ -95,6 +90,20 @@ public class ChatService {
                 "latencyMs", latencyMs);
 
         return new ChatResponse(conversation.getId().toString(), answer, extractSources(response), metadata);
+    }
+
+    /**
+     * One blocking LLM round trip: user message in, full response out. The
+     * advisors param routes conversation memory to this conversation's history;
+     * tools registers the function-calling toolbox for this request.
+     */
+    private ChatClientResponse callModel(Conversation conversation, ChatRequest request) {
+        return chatClient.prompt()
+                .user(request.message())
+                .advisors(advisors -> advisors.param(ChatMemory.CONVERSATION_ID, conversation.getId().toString()))
+                .tools(agentTools)
+                .call()
+                .chatClientResponse();
     }
 
     /**
