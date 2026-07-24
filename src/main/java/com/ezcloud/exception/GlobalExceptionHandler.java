@@ -37,6 +37,12 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage(), Map.of());
     }
 
+    /** Workshop shell: surfaces "TODO n.m — see WORKSHOP.md" stubs as a clear 501 instead of a 500. */
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<Map<String, Object>> handleNotImplemented(UnsupportedOperationException ex) {
+        return error(HttpStatus.NOT_IMPLEMENTED, ex.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
         return error(HttpStatus.UNAUTHORIZED, "invalid_credentials", Map.of());
