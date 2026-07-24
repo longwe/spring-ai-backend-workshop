@@ -11,14 +11,18 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Standalone MockMvc test — no Spring context, DB, or LLM required. */
@@ -48,6 +52,23 @@ class ChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answer").value("Paris is the capital of France."))
                 .andExpect(jsonPath("$.conversationId").value("conv-1"));
+    }
+
+    @Test
+    void streamsTokensAsServerSentEvents() throws Exception {
+        Mockito.when(chatService.chatStream(eq("alice"), any()))
+                .thenReturn(Flux.just("Paris", " is", " the capital."));
+
+        var asyncResult = mockMvc.perform(post("/api/chat/stream")
+                        .principal(new UsernamePasswordAuthenticationToken("alice", null))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"What is the capital of France?\"}"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(asyncResult))
+                .andExpect(status().isOk())
+                .andExpect(content().string("data:Paris\n\ndata: is\n\ndata: the capital.\n\n"));
     }
 
     @Test

@@ -10,6 +10,8 @@ import com.ezcloud.exception.NotFoundException;
 import com.ezcloud.repository.AiLogRepository;
 import com.ezcloud.repository.ConversationRepository;
 import com.ezcloud.repository.UserRepository;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -17,7 +19,9 @@ import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvi
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,6 +59,8 @@ public class ChatService {
         this.meterRegistry = meterRegistry;
     }
 
+    @Retry(name = "ai")
+    @CircuitBreaker(name = "ai", fallbackMethod = "chatFallback")
     public ChatResponse chat(String username, ChatRequest request) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("user_not_found"));
@@ -77,7 +83,7 @@ public class ChatService {
 
         meterRegistry.counter("ai.tokens", "direction", "input").increment(inputTokens);
         meterRegistry.counter("ai.tokens", "direction", "output").increment(outputTokens);
-        meterRegistry.timer("ai.chat.latency").record(java.time.Duration.ofMillis(latencyMs));
+        meterRegistry.timer("ai.chat.latency").record(Duration.ofMillis(latencyMs));
 
         aiLogRepository.save(new AiLog(user.getId(), conversation.getId(), request.message(), answer,
                 inputTokens, outputTokens, latencyMs, model));
@@ -89,6 +95,51 @@ public class ChatService {
                 "latencyMs", latencyMs);
 
         return new ChatResponse(conversation.getId().toString(), answer, extractSources(response), metadata);
+    }
+
+    /**
+     * Streams the answer token-by-token as it is generated. Memory and RAG
+     * advisors run exactly as in {@link #chat}; the full answer is logged once
+     * the stream completes. (Resilience4j annotations don't support reactive
+     * return types without the reactor module, so this path relies on the
+     * client timing out and re-requesting.)
+     */
+    public Flux<String> chatStream(String username, ChatRequest request) {
+        var user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new NotFoundException("user_not_found"));
+        var conversation = resolveConversation(user, request);
+
+        var start = System.currentTimeMillis();
+        var answer = new StringBuilder();
+        return chatClient.prompt()
+                .user(request.message())
+                .advisors(advisors -> advisors.param(ChatMemory.CONVERSATION_ID, conversation.getId().toString()))
+                .tools(agentTools)
+                .stream()
+                .content()
+                .doOnNext(answer::append)
+                .doOnComplete(() -> {
+                    var latencyMs = System.currentTimeMillis() - start;
+                    meterRegistry.timer("ai.chat.latency").record(Duration.ofMillis(latencyMs));
+                    meterRegistry.counter("ai.chat.stream").increment();
+                    aiLogRepository.save(new AiLog(user.getId(), conversation.getId(), request.message(),
+                            answer.toString(), null, null, latencyMs, "streamed"));
+                });
+    }
+
+    /**
+     * Invoked by the circuit breaker when {@link #chat} fails or the circuit is
+     * open. Business exceptions keep their normal HTTP mapping; infrastructure
+     * failures degrade gracefully instead of surfacing a 500.
+     */
+    private ChatResponse chatFallback(String username, ChatRequest request, Throwable failure) {
+        if (failure instanceof NotFoundException || failure instanceof IllegalArgumentException) {
+            throw (RuntimeException) failure;
+        }
+        meterRegistry.counter("ai.chat.fallback").increment();
+        return new ChatResponse(request.conversationId(),
+                "The AI service is temporarily unavailable. Please try again in a moment.",
+                List.of(), Map.of("degraded", true));
     }
 
     private Conversation resolveConversation(User user, ChatRequest request) {

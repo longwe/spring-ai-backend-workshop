@@ -30,6 +30,10 @@ spring:
       max-request-size: 25MB
 
   ai:
+    # Spring AI has its own transport-level retry; disable it so Resilience4j
+    # (see resilience4j: below) is the single, observable retry mechanism.
+    retry:
+      max-attempts: 1
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
       chat:
@@ -59,6 +63,33 @@ security:
 
 ratelimit:
   requests-per-minute: ${RATE_LIMIT_RPM:60}
+
+# Resilience around LLM calls. Business exceptions (bad input, not-found) must
+# never trigger retries or count as circuit-breaker failures.
+resilience4j:
+  retry:
+    instances:
+      ai:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - com.ezcloud.exception.NotFoundException
+          - java.lang.IllegalArgumentException
+          # 4xx-style AI errors (bad API key, oversized prompt) never succeed on retry
+          - org.springframework.ai.retry.NonTransientAiException
+  circuitbreaker:
+    instances:
+      ai:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        ignore-exceptions:
+          - com.ezcloud.exception.NotFoundException
+          - java.lang.IllegalArgumentException
 
 management:
   endpoints:
