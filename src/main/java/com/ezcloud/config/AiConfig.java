@@ -7,9 +7,11 @@ import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvi
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
+import org.springframework.ai.model.anthropic.autoconfigure.AnthropicChatProperties;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
@@ -32,6 +34,26 @@ public class AiConfig {
     private static final int MEMORY_WINDOW_MESSAGES = 20;
     private static final int RAG_TOP_K = 5;
     private static final double RAG_SIMILARITY_THRESHOLD = 0.4;
+
+    /**
+     * Claude Opus 4.8 rejects the temperature parameter, but Spring AI's
+     * autoconfiguration hardcodes a default one into AnthropicChatProperties
+     * (and yaml cannot bind a property to null). Clear it after binding so the
+     * parameter is never sent — without this every model call fails with
+     * HTTP 400 "temperature is deprecated for this model".
+     */
+    @Bean
+    public static BeanPostProcessor clearAnthropicTemperature() {
+        return new BeanPostProcessor() {
+            @Override
+            public Object postProcessAfterInitialization(Object bean, String beanName) {
+                if (bean instanceof AnthropicChatProperties properties) {
+                    properties.getOptions().setTemperature(null);
+                }
+                return bean;
+            }
+        };
+    }
 
     @Bean
     public ChatMemory chatMemory(JdbcChatMemoryRepository chatMemoryRepository) {
