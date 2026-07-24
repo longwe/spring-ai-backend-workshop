@@ -1,0 +1,106 @@
+# AI Platform configuration.
+# All secrets come from environment variables; defaults below are for local dev only.
+spring:
+  application:
+    name: ai-platform
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:aiplatform}
+    username: ${DB_USER:aiplatform}
+    password: ${DB_PASSWORD:aiplatform}
+
+  jpa:
+    hibernate:
+      ddl-auto: none   # schema is owned by Flyway (src/main/resources/db/migration)
+    open-in-view: false
+
+  flyway:
+    enabled: true
+
+  cache:
+    type: ${CACHE_TYPE:simple}   # set CACHE_TYPE=redis in docker/k8s
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+
+  ai:
+    # Spring AI has its own transport-level retry; disable it so Resilience4j
+    # (see resilience4j: below) is the single, observable retry mechanism.
+    retry:
+      max-attempts: 1
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          # Claude Opus 4.8. Note: this model rejects temperature/top_p/top_k —
+          # steer behavior via the system prompt instead.
+          model: claude-opus-4-8
+          max-tokens: 4096
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        # all-MiniLM-L6-v2 (local ONNX embedding model) produces 384-dim vectors
+        dimensions: 384
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+
+security:
+  jwt:
+    # Base64-encoded HMAC key, >= 256 bits. Dev default only — override in every deployed env.
+    secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWtleS1jaGFuZ2UtaW4tcHJvZC0xMjM0NTY=}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+
+ratelimit:
+  requests-per-minute: ${RATE_LIMIT_RPM:60}
+
+# Resilience around LLM calls. Business exceptions (bad input, not-found) must
+# never trigger retries or count as circuit-breaker failures.
+resilience4j:
+  retry:
+    instances:
+      ai:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - com.ezcloud.exception.NotFoundException
+          - java.lang.IllegalArgumentException
+          # 4xx-style AI errors (bad API key, oversized prompt) never succeed on retry
+          - org.springframework.ai.retry.NonTransientAiException
+  circuitbreaker:
+    instances:
+      ai:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        ignore-exceptions:
+          - com.ezcloud.exception.NotFoundException
+          - java.lang.IllegalArgumentException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.aiplatform: INFO

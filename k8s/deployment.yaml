@@ -1,0 +1,56 @@
+# Minimal Kubernetes manifest — deployment + service. Postgres/Redis are
+# assumed to be managed services (RDS, ElastiCache) referenced via env/Secrets.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-platform
+  labels:
+    app: ai-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-platform
+  template:
+    metadata:
+      labels:
+        app: ai-platform
+    spec:
+      containers:
+        - name: ai-platform
+          image: ai-platform:latest   # replace with your registry tag
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: ai-platform-secrets   # ANTHROPIC_API_KEY, JWT_SECRET, DB_*, REDIS_HOST
+          env:
+            - name: CACHE_TYPE
+              value: redis
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 60
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-platform
+spec:
+  selector:
+    app: ai-platform
+  ports:
+    - port: 80
+      targetPort: 8080
