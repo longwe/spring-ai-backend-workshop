@@ -1,0 +1,3 @@
+    // TODO(5.1): guard this method with @Retry(name = "ai") and
+    //            @CircuitBreaker(name = "ai", fallbackMethod = "chatFallback")
+    //            — the resilience4j config in application.yaml is already there                   [Module 5]

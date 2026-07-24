@@ -34,11 +34,13 @@ public class TriageService {
 
     @Retry(name = "ai")
     public TicketTriage triage(TriageRequest request) {
+        // workshop:start(2.1)
         var prompt = new PromptTemplate(triagePrompt)
                 .render(Map.of("message", request.message()));
         return chatClient.prompt()
                 .user(prompt)
                 .call()
                 .entity(TicketTriage.class);
+        // workshop:end
     }
 }

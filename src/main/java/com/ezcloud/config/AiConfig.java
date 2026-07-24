@@ -46,6 +46,7 @@ public class AiConfig {
                                  ChatMemory chatMemory,
                                  VectorStore vectorStore,
                                  @Value("classpath:prompts/system-rag.st") Resource systemPrompt) {
+        // workshop:start(client)
         return builder
                 .defaultSystem(readResource(systemPrompt))
                 .defaultAdvisors(
@@ -58,6 +59,7 @@ public class AiConfig {
                                 .build(),
                         new SimpleLoggerAdvisor())
                 .build();
+        // workshop:end
     }
 
     private static String readResource(Resource resource) {

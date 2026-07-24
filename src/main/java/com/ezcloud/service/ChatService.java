@@ -59,8 +59,10 @@ public class ChatService {
         this.meterRegistry = meterRegistry;
     }
 
+    // workshop:start(5.1)
     @Retry(name = "ai")
     @CircuitBreaker(name = "ai", fallbackMethod = "chatFallback")
+    // workshop:end
     public ChatResponse chat(String username, ChatRequest request) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("user_not_found"));
@@ -98,12 +100,14 @@ public class ChatService {
      * tools registers the function-calling toolbox for this request.
      */
     private ChatClientResponse callModel(Conversation conversation, ChatRequest request) {
+        // workshop:start(1.2)
         return chatClient.prompt()
                 .user(request.message())
                 .advisors(advisors -> advisors.param(ChatMemory.CONVERSATION_ID, conversation.getId().toString()))
                 .tools(agentTools)
                 .call()
                 .chatClientResponse();
+        // workshop:end
     }
 
     /**
@@ -118,6 +122,7 @@ public class ChatService {
                 .orElseThrow(() -> new NotFoundException("user_not_found"));
         var conversation = resolveConversation(user, request);
 
+        // workshop:start(3.1)
         var start = System.currentTimeMillis();
         var answer = new StringBuilder();
         return chatClient.prompt()
@@ -134,6 +139,7 @@ public class ChatService {
                     aiLogRepository.save(new AiLog(user.getId(), conversation.getId(), request.message(),
                             answer.toString(), null, null, latencyMs, "streamed"));
                 });
+        // workshop:end
     }
 
     /**
@@ -142,6 +148,7 @@ public class ChatService {
      * failures degrade gracefully instead of surfacing a 500.
      */
     private ChatResponse chatFallback(String username, ChatRequest request, Throwable failure) {
+        // workshop:start(5.2)
         if (failure instanceof NotFoundException || failure instanceof IllegalArgumentException) {
             throw (RuntimeException) failure;
         }
@@ -149,6 +156,7 @@ public class ChatService {
         return new ChatResponse(request.conversationId(),
                 "The AI service is temporarily unavailable. Please try again in a moment.",
                 List.of(), Map.of("degraded", true));
+        // workshop:end
     }
 
     private Conversation resolveConversation(User user, ChatRequest request) {

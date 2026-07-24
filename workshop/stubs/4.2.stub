@@ -1,0 +1,3 @@
+        // TODO(4.2): stamp each chunk's metadata ("documentId", "filename"),
+        //            then embed + store them with vectorStore.add(chunks)                         [Module 4]
+        throw new UnsupportedOperationException("TODO 4.2 — see WORKSHOP.md Module 4");

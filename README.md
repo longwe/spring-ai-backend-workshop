@@ -1,3 +1,6 @@
+> **👋 Workshop attendees: start with [WORKSHOP.md](WORKSHOP.md).** This README
+> describes the finished application you will have built by the end of the session.
+
 # AI Platform — Spring AI Backend
 
 Production-grade AI backend: Claude-powered chat with conversation memory, RAG over

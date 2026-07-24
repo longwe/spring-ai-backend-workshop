@@ -1,0 +1,5 @@
+        // TODO(1.1): give the client its persona via .defaultSystem(readResource(systemPrompt))   [Module 1]
+        // TODO(3.2): add conversation memory — MessageChatMemoryAdvisor via .defaultAdvisors(...) [Module 3]
+        // TODO(4.3): ground answers in uploaded docs — add a QuestionAnswerAdvisor
+        //            (use the RAG_TOP_K / RAG_SIMILARITY_THRESHOLD constants above)               [Module 4]
+        return builder.build();

@@ -92,16 +92,20 @@ public class DocumentService {
 
     /** Splits parsed pages into token-sized chunks suited to the embedding model. */
     private List<Document> chunkDocument(List<Document> parsed) {
+        // workshop:start(4.1)
         return new TokenTextSplitter().apply(parsed);
+        // workshop:end
     }
 
     /** Stamps each chunk with its source metadata, then embeds + stores in pgvector. */
     private void storeChunks(List<Document> chunks, DocumentEntity entity) {
+        // workshop:start(4.2)
         chunks.forEach(chunk -> {
             chunk.getMetadata().put("documentId", entity.getId().toString());
             chunk.getMetadata().put("filename", entity.getFilename());
         });
         vectorStore.add(chunks);
+        // workshop:end
     }
 
     private List<Document> readWithTika(MultipartFile file) {

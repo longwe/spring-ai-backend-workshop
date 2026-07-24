@@ -1,0 +1,3 @@
+        // TODO(2.1): render prompts/triage.st with a PromptTemplate (variable: "message"),
+        //            then ask for a typed result: .call().entity(TicketTriage.class)              [Module 2]
+        throw new UnsupportedOperationException("TODO 2.1 — see WORKSHOP.md Module 2");

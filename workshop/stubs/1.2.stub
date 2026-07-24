@@ -1,0 +1,5 @@
+        // TODO(1.2): one blocking round trip:
+        //   chatClient.prompt().user(...).tools(agentTools).call().chatClientResponse()           [Module 1]
+        // TODO(3.2): route memory to this conversation — add before .tools(...):
+        //   .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversation.getId().toString()))  [Module 3]
+        throw new UnsupportedOperationException("TODO 1.2 — see WORKSHOP.md Module 1");

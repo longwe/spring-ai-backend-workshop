@@ -1,0 +1,4 @@
+        // TODO(5.2): rethrow business exceptions (NotFoundException, IllegalArgumentException)
+        //            so they keep their HTTP mapping; for infrastructure failures return a
+        //            degraded ChatResponse with metadata {"degraded": true}                       [Module 5]
+        throw new UnsupportedOperationException("TODO 5.2 — see WORKSHOP.md Module 5");
